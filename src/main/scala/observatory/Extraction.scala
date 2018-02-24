@@ -2,7 +2,8 @@ package observatory
 
 import java.time.LocalDate
 
-import sparkUtils.Spark
+import org.apache.spark.sql.Row
+import sparkUtils.{Spark, Station, TemperatureReading}
 
 /**
   * 1st milestone: data extraction
@@ -15,7 +16,11 @@ object Extraction extends Spark {
     case str if str.nonEmpty => str.toLong
   }
 
-  private def coordConverter: PartialFunction[String, Double] = {
+  private def intConverter: PartialFunction[String, Int] = {
+    case str if str.nonEmpty => str.toInt
+  }
+
+  private def doubleConverter: PartialFunction[String, Double] = {
     case str if str.nonEmpty => str.toDouble
   }
 
@@ -25,8 +30,9 @@ object Extraction extends Spark {
     case str if str.nonEmpty => (str.toDouble - 32) * 5 / 9
   }
 
-
-
+  private def getRowValue[T](i: Int, converter: PartialFunction[String, T])(implicit row: Row): Option[T] = {
+    Option(row.getString(i)).collect(converter)
+  }
 
   /**
     * @param year             Year number
@@ -37,17 +43,33 @@ object Extraction extends Spark {
   def locateTemperatures(year: Year, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Temperature)] = {
 
     val stationsDS = sparkSession.read.csv(this.getClass.getResource(stationsFile).getPath).map { row =>
+      implicit val _r: Row = row
       Station(
-        stnId = Option(row.getString(0)).collect(idConverter),
-        wbanId = Option(row.getString(1)).collect(idConverter),
+        stnId = getRowValue(0, idConverter),
+        wbanId = getRowValue(1, idConverter),
         location = for {
-          lat <- Option(row.getString(2)).collect(coordConverter)
-          lon <- Option(row.getString(3)).collect(coordConverter)
+          lat <- getRowValue(2, doubleConverter)
+          lon <- getRowValue(3, doubleConverter)
         } yield Location(lat, lon)
+      )
+    }.filter(_.location.nonEmpty)
+
+    val readingsDS = sparkSession.read.csv(this.getClass.getResource(temperaturesFile).getPath).map { row =>
+      implicit val _r: Row = row
+      TemperatureReading(
+        stnId = getRowValue(0, idConverter),
+        wbanId = getRowValue(1, idConverter),
+        month = getRowValue(2, intConverter),
+        day = getRowValue(3, intConverter),
+        temperature = getRowValue(4, temperatureConverter)
       )
     }
 
-    a.show()
+
+
+    readingsDS.show(100)
+
+
 
     List((LocalDate.MAX, Location(0, 0), 1.0))
   }
