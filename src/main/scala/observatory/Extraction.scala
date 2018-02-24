@@ -2,10 +2,13 @@ package observatory
 
 import java.time.LocalDate
 
+import spark.Spark
+
 /**
   * 1st milestone: data extraction
   */
-object Extraction {
+object Extraction extends Spark {
+
 
   /**
     * @param year             Year number
@@ -14,7 +17,13 @@ object Extraction {
     * @return A sequence containing triplets (date, location, temperature)
     */
   def locateTemperatures(year: Year, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Temperature)] = {
-    ???
+
+    sparkContext.textFile(getClass.getResource(stationsFile).getPath)
+      .collect()
+      .toList
+      .foreach(println)
+
+    List((LocalDate.MAX, Location(0, 0), 1.0))
   }
 
   /**
