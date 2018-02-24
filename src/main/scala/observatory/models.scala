@@ -7,6 +7,8 @@ package observatory
   */
 case class Location(lat: Double, lon: Double)
 
+case class Station(stnId: Option[Long], wbanId: Option[Long], location: Option[Location])
+
 /**
   * Introduced in Week 3. Represents a tiled web map tile.
   * See https://en.wikipedia.org/wiki/Tiled_web_map
