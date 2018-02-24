@@ -52,7 +52,16 @@ object Extraction extends Spark {
           lon <- getRowValue(3, doubleConverter)
         } yield Location(lat, lon)
       )
-    }.filter(_.location.nonEmpty)
+    }
+    .filter {
+      station: Station => (
+       for {
+         _ <- station.wbanId.flatMap(_ => station.stnId)
+         _ <- station.location
+       } yield true
+      )
+      .nonEmpty
+    }
 
     val readingsDS = sparkSession.read.csv(this.getClass.getResource(temperaturesFile).getPath).map { row =>
       implicit val _r: Row = row
@@ -63,15 +72,30 @@ object Extraction extends Spark {
         day = getRowValue(3, intConverter),
         temperature = getRowValue(4, temperatureConverter)
       )
+    }.filter {
+      reading: TemperatureReading => (
+        for {
+          _ <- reading.wbanId.flatMap(_ => reading.stnId)
+          _ <- reading.day
+          _ <- reading.month
+          _ <- reading.temperature
+        } yield true
+      )
+      .nonEmpty
     }
 
+    import scala.collection.JavaConverters._
 
-
-    readingsDS.show(100)
-
-
-
-    List((LocalDate.MAX, Location(0, 0), 1.0))
+    //use frameless?
+    readingsDS.joinWith(stationsDS,
+      (stationsDS("stnId") === readingsDS("stnId")) ||
+      (stationsDS("wbanId") === readingsDS("wbanId"))
+    )
+    .map { case (reading, station) =>
+      (LocalDate.of(year, reading.month.get, reading.day.get).toEpochDay, station.location.get, reading.temperature.get)
+    }
+    .toLocalIterator().asScala.toIterable
+    .map { case (epochDay, l, t) => (LocalDate.ofEpochDay(epochDay), l, t) }
   }
 
   /**
