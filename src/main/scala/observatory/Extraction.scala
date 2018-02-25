@@ -3,7 +3,7 @@ package observatory
 import java.time.LocalDate
 
 import org.apache.spark.sql.Row
-import sparkUtils.{Spark, Station, TemperatureReading}
+import sparkUtils.{Spark, Station, StationReading}
 
 /**
   * 1st milestone: data extraction
@@ -34,6 +34,7 @@ object Extraction extends Spark {
     Option(row.getString(i)).collect(converter)
   }
 
+  //todo think about frameless
   /**
     * @param year             Year number
     * @param stationsFile     Path of the stations resource file to use (e.g. "/stations.csv")
@@ -62,18 +63,20 @@ object Extraction extends Spark {
       )
       .nonEmpty
     }
+    .repartition($"stnId", $"wbanId")
 
     val readingsDS = sparkSession.read.csv(this.getClass.getResource(temperaturesFile).getPath).map { row =>
       implicit val _r: Row = row
-      TemperatureReading(
+      StationReading(
         stnId = getRowValue(0, idConverter),
         wbanId = getRowValue(1, idConverter),
         month = getRowValue(2, intConverter),
         day = getRowValue(3, intConverter),
         temperature = getRowValue(4, temperatureConverter)
       )
-    }.filter {
-      reading: TemperatureReading => (
+    }
+    .filter {
+      reading: StationReading => (
         for {
           _ <- reading.wbanId.flatMap(_ => reading.stnId)
           _ <- reading.day
@@ -83,19 +86,18 @@ object Extraction extends Spark {
       )
       .nonEmpty
     }
+    .repartition($"stnId", $"wbanId")
 
     import scala.collection.JavaConverters._
 
-    //use frameless?
     readingsDS.joinWith(stationsDS,
       (stationsDS("stnId") === readingsDS("stnId")) ||
       (stationsDS("wbanId") === readingsDS("wbanId"))
     )
     .map { case (reading, station) =>
-      (LocalDate.of(year, reading.month.get, reading.day.get).toEpochDay, station.location.get, reading.temperature.get)
+      (LocalDate.of(year, reading.month.get, reading.day.get), station.location.get, reading.temperature.get)
     }
     .toLocalIterator().asScala.toIterable
-    .map { case (epochDay, l, t) => (LocalDate.ofEpochDay(epochDay), l, t) }
   }
 
   /**
@@ -103,7 +105,17 @@ object Extraction extends Spark {
     * @return A sequence containing, for each location, the average temperature over the year.
     */
   def locationYearlyAverageRecords(records: Iterable[(LocalDate, Location, Temperature)]): Iterable[(Location, Temperature)] = {
-    ???
+
+
+//      .map {
+//        case (date, location, temperature) => Row(date, location, temperature)
+//      }
+//      .toDF()
+
+    sparkSession
+
+
+    Nil
   }
 
 }
