@@ -14,10 +14,8 @@ object Extraction extends Spark {
 
   import sparkSession.implicits._
 
-  private val temperatureExclusion: Double = 9999.9
-
   private def temperatureConverter: PartialFunction[Double, Double] = {
-    case t if t != temperatureExclusion => (t.toDouble - 32) * 5 / 9
+    case t if t != 9999.9 => (t.toDouble - 32) * 5 / 9
   }
 
   private def getRowValue[T](i: Int)(implicit row: Row): Option[T] = {
@@ -33,12 +31,11 @@ object Extraction extends Spark {
   }
 
   //todo think about frameless
-
   def stationsDS(stationsFile: String): Dataset[Station] = {
 
     val schema = StructType(List(
-      StructField("stnId", LongType, nullable = true),
-      StructField("wbanId", LongType, nullable = true),
+      StructField("stnId", StringType, nullable = true),
+      StructField("wbanId", StringType, nullable = true),
       StructField("lat", DoubleType, nullable = true),
       StructField("lon", DoubleType, nullable = true)
     ))
@@ -63,8 +60,8 @@ object Extraction extends Spark {
   def stationsReadingsDS(temperaturesFile: String): Dataset[StationReading] = {
 
     val schema = StructType(List(
-      StructField("stnId", LongType, nullable = true),
-      StructField("wbanId", LongType, nullable = true),
+      StructField("stnId", StringType, nullable = true),
+      StructField("wbanId", StringType, nullable = true),
       StructField("month", IntegerType, nullable = true),
       StructField("day", IntegerType, nullable = true),
       StructField("temperature", DoubleType, nullable = true)
