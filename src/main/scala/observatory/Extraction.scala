@@ -5,7 +5,6 @@ import java.time.LocalDate
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Dataset, Row}
 import sparkUtils._
-import org.apache.spark.sql.functions.{max, avg}
 
 
 /**
@@ -56,14 +55,8 @@ object Extraction extends Spark {
         } yield Location(lat, lon)
       )
     }
-    .filter { station: Station =>
-      (
-        for {
-          _ <- station.wbanId.flatMap(_ => station.stnId)
-          _ <- station.location
-        } yield true
-      )
-      .nonEmpty
+    .filter {
+      s: Station => s.valid
     }
   }
 
@@ -87,16 +80,8 @@ object Extraction extends Spark {
         temperature = getRowValue(4, temperatureConverter)
       )
     }
-    .filter { reading: StationReading =>
-      (
-        for {
-          _ <- reading.wbanId.flatMap(_ => reading.stnId)
-          _ <- reading.day
-          _ <- reading.month
-          _ <- reading.temperature
-        } yield true
-      )
-      .nonEmpty
+    .filter {
+      r: StationReading => r.valid
     }
   }
 

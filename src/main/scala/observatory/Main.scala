@@ -12,10 +12,10 @@ object Main extends App {
   val readings = Extraction.stationsReadingsDS("/2015.csv")
 
   println(Calendar.getInstance().getTime)
-  Extraction.aggregateAverageTemperature(Extraction.locationReadingsDS(stations, readings, 2015)).count()
+  println(Extraction.aggregateAverageTemperature(Extraction.locationReadingsDS(stations, readings, 2015)).count())
 
   println(Calendar.getInstance().getTime)
-  Extraction.locationYearlyAverageRecords(Extraction.locateTemperatures(2015, "/stations.csv", "/2015.csv")).count(_ => true)
+  println(Extraction.locationYearlyAverageRecords(Extraction.locateTemperatures(2015, "/stations.csv", "/2015.csv")).count(_ => true))
 
   println(Calendar.getInstance().getTime)
 

@@ -1,4 +1,4 @@
-package sparkUtils
+package observatory.sparkUtils
 
 import org.apache.spark.sql.Dataset
 
