@@ -5,6 +5,7 @@ import java.time.LocalDate
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Dataset, Row}
 import sparkUtils._
+import org.apache.spark.sql.functions.{max, avg}
 
 
 /**
@@ -109,34 +110,21 @@ object Extraction extends Spark {
     )
     .map { case (reading, station) =>
       LocationReading(
-        stnId = station.stnId,
-        wbanId = station.wbanId,
-        epochDay = LocalDate.of(year, reading.month.get, reading.day.get).toEpochDay,
         location = station.location.get,
+        epochDay = LocalDate.of(year, reading.month.get, reading.day.get).toEpochDay,
         temperature = reading.temperature.get
       )
     }
   }
 
-  def aggregateAverageTemperature(stations: Dataset[Station], locationReadings: Dataset[LocationReading]): Dataset[(Location, Temperature)] = {
-    val agg = locationReadings
-      .groupBy($"stnId", $"wbanId")
+  def aggregateAverageTemperature(locationReadings: Dataset[LocationReading]): Dataset[(Location, Temperature)] = {
+    locationReadings
+      .groupBy($"location")
       .avg("temperature")
       .map { row =>
-        implicit val _r: Row = row
-        TemperatureAgg(
-          stnId = getRowValue(0),
-          wbanId = getRowValue(1),
-          average = getRowValue[Double](2).get
-        )
+        val location = row.getStruct(0)
+        (Location(location.getDouble(0), location.getDouble(1)), row.getDouble(1))
       }
-
-    stations.joinWith(agg,
-      (stations("stnId") === agg("stnId")) &&
-      (stations("wbanId") === agg("wbanId"))
-    ).map { case (station, avg) =>
-      (station.location.get, avg.average)
-    }
   }
 
   /**
@@ -152,7 +140,6 @@ object Extraction extends Spark {
     val locationReadings = locationReadingsDS(stations, readings, year)
 
     import scala.collection.JavaConverters._
-
     locationReadings.toLocalIterator().asScala.toStream.map(lr => (LocalDate.ofEpochDay(lr.epochDay), lr.location, lr.temperature))
   }
 
@@ -163,12 +150,12 @@ object Extraction extends Spark {
   def locationYearlyAverageRecords(records: Iterable[(LocalDate, Location, Temperature)]): Iterable[(Location, Temperature)] = {
 
     val transformed = records.toStream.map {
-      case (ld, l, t) => (ld.toEpochDay)
+      case (date, l, t) => LocationReading(l, date.toEpochDay, t)
     }
 
-    sparkSession.sparkContext.parallelize(records.toStream)
+    val readings = sparkSession.sparkContext.parallelize(transformed).toDS()
 
-    Nil
+    import scala.collection.JavaConverters._
+    aggregateAverageTemperature(readings).toLocalIterator().asScala.toStream
   }
-
 }

@@ -6,6 +6,6 @@ case class Station(stnId: Option[Long], wbanId: Option[Long], location: Option[L
 
 case class StationReading(stnId: Option[Long], wbanId: Option[Long], month: Option[Month], day: Option[Day], temperature: Option[Temperature])
 
-case class LocationReading(stnId: Option[Long], wbanId: Option[Long], epochDay: Long, location: Location, temperature: Temperature)
+case class LocationReading(location: Location, epochDay: Long, temperature: Temperature)
 
 case class TemperatureAgg(stnId: Option[Long], wbanId: Option[Long], average: Double)
