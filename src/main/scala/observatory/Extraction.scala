@@ -41,20 +41,20 @@ object Extraction extends Spark {
     ))
 
     sparkSession.read.schema(schema).csv(this.getClass.getResource(stationsFile).getPath)
-    .map { row =>
-      implicit val _r: Row = row
-      Station(
-        stnId = getRowValue(0),
-        wbanId = getRowValue(1),
-        location = for {
-          lat <- getRowValue[Double](2)
-          lon <- getRowValue[Double](3)
-        } yield Location(lat, lon)
-      )
-    }
-    .filter {
-      s: Station => s.valid
-    }
+      .map { row =>
+        implicit val _r: Row = row
+        Station(
+          stnId = getRowValue(0),
+          wbanId = getRowValue(1),
+          location = for {
+            lat <- getRowValue[Double](2)
+            lon <- getRowValue[Double](3)
+          } yield Location(lat, lon)
+        )
+      }
+      .filter {
+        s: Station => s.valid
+      }
   }
 
   def stationsReadingsDS(temperaturesFile: String): Dataset[StationReading] = {
@@ -67,19 +67,20 @@ object Extraction extends Spark {
       StructField("temperature", DoubleType, nullable = true)
     ))
 
-    sparkSession.read.schema(schema).csv(this.getClass.getResource(temperaturesFile).getPath).map { row =>
-      implicit val _r: Row = row
-      StationReading(
-        stnId = getRowValue(0),
-        wbanId = getRowValue(1),
-        month = getRowValue(2),
-        day = getRowValue(3),
-        temperature = getRowValue(4, temperatureConverter)
-      )
-    }
-    .filter {
-      r: StationReading => r.valid
-    }
+    sparkSession.read.schema(schema).csv(this.getClass.getResource(temperaturesFile).getPath)
+      .map { row =>
+        implicit val _r: Row = row
+        StationReading(
+          stnId = getRowValue(0),
+          wbanId = getRowValue(1),
+          month = getRowValue(2),
+          day = getRowValue(3),
+          temperature = getRowValue(4, temperatureConverter)
+        )
+      }
+      .filter {
+        r: StationReading => r.valid
+      }
   }
 
   def locationReadingsDS(st: Dataset[Station], rd: Dataset[StationReading], year: Year): Dataset[LocationReading] = {
