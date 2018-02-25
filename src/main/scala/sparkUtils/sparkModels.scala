@@ -1,7 +1,5 @@
 package sparkUtils
 
-import java.time.LocalDate
-
 import observatory.{Day, Location, Month, Temperature}
 
 case class Station(stnId: Option[Long], wbanId: Option[Long], location: Option[Location])
