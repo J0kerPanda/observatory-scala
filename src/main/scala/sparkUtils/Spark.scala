@@ -18,6 +18,6 @@ trait Spark extends {
     .getOrCreate()
 
   implicit val localDateEncoder: Encoder[LocalDate] = Encoders.kryo[LocalDate]
-  implicit val localReadingEncoder = Encoders.kryo[(LocalDate, Location, Temperature)]
-  implicit val locationReadingEncoder = Encoders.kryo[LocationReading]
+  implicit val localReadingEncoder: Encoder[(LocalDate, Location, Temperature)] = Encoders.kryo[(LocalDate, Location, Temperature)]
+  implicit val locationReadingEncoder: Encoder[LocationReading] = Encoders.kryo[LocationReading]
 }

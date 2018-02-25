@@ -2,8 +2,10 @@ package observatory
 
 import java.time.LocalDate
 
-import org.apache.spark.sql.Row
-import sparkUtils.{Spark, Station, StationReading}
+import org.apache.spark.sql.{Dataset, Row}
+import sparkUtils.{LocationReading, Spark, Station, StationReading}
+import org.apache.spark.sql.functions.avg
+
 
 /**
   * 1st milestone: data extraction
@@ -35,6 +37,90 @@ object Extraction extends Spark {
   }
 
   //todo think about frameless
+
+  def stationsDS(stationsFile: String): Dataset[Station] = {
+    sparkSession.read.csv(this.getClass.getResource(stationsFile).getPath).map { row =>
+      implicit val _r: Row = row
+      Station(
+        stnId = getRowValue(0, idConverter),
+        wbanId = getRowValue(1, idConverter),
+        location = for {
+          lat <- getRowValue(2, doubleConverter)
+          lon <- getRowValue(3, doubleConverter)
+        } yield Location(lat, lon)
+      )
+    }
+    .filter {
+      station: Station => (
+        for {
+          _ <- station.wbanId.flatMap(_ => station.stnId)
+          _ <- station.location
+        } yield true
+        )
+        .nonEmpty
+    }
+  }
+
+  private def stationsReadingsDS(temperaturesFile: String): Dataset[StationReading] = {
+    sparkSession.read.csv(this.getClass.getResource(temperaturesFile).getPath).map { row =>
+      implicit val _r: Row = row
+      StationReading(
+        stnId = getRowValue(0, idConverter),
+        wbanId = getRowValue(1, idConverter),
+        month = getRowValue(2, intConverter),
+        day = getRowValue(3, intConverter),
+        temperature = getRowValue(4, temperatureConverter)
+      )
+    }
+    .filter {
+      reading: StationReading => (
+        for {
+          _ <- reading.wbanId.flatMap(_ => reading.stnId)
+          _ <- reading.day
+          _ <- reading.month
+          _ <- reading.temperature
+        } yield true
+        )
+        .nonEmpty
+    }
+  }
+
+  def locationReadingsDS(year: Year, stationsFile: String, temperaturesFile: String): Dataset[LocationReading] = {
+
+    val stations = stationsDS(stationsFile)
+      .repartition($"stnId", $"wbanId")
+
+    stations.printSchema()
+
+    val readings = stationsReadingsDS(temperaturesFile)
+      .repartition($"stnId", $"wbanId")
+
+    val a = readings.joinWith(stations,
+      (stations("stnId") === readings("stnId")) ||
+      (stations("wbanId") === readings("wbanId"))
+    )
+    .map { case (reading, station) =>
+      LocationReading(LocalDate.of(year, reading.month.get, reading.day.get), station.location.get, reading.temperature.get)
+    }
+
+    a.printSchema()
+
+    a
+  }
+
+  def aggregateAverageTemperature(locationReadings: Dataset[LocationReading]) = {
+
+    locationReadings.printSchema()
+
+    locationReadings
+      .groupBy("location")
+      .avg("temperature")
+      .map { row =>
+        (row.getAs[Location]("location"), row.getAs[Double]("avg_temperature"))
+      }
+      .show()
+  }
+
   /**
     * @param year             Year number
     * @param stationsFile     Path of the stations resource file to use (e.g. "/stations.csv")
