@@ -5,8 +5,7 @@ import java.time.LocalDate
 import observatory.sparkUtils._
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.functions.concat_ws
-
+import org.apache.spark.sql.functions.{concat_ws, coalesce}
 
 /**
   * 1st milestone: data extraction
@@ -26,7 +25,7 @@ object Extraction extends Spark {
     ))
 
     sparkSession.read.schema(schema).csv(this.getClass.getResource(stationsFile).getPath)
-      .withColumn("id", concat_ws("_", $"stnId", $"wbanId"))
+      .withColumn("id", concat_ws("_", coalesce($"stnId", lit("")), $"wbanId"))
       .drop("stnId", "wbanId")
       .na.drop()
       .as[Station]
@@ -43,7 +42,7 @@ object Extraction extends Spark {
     ))
 
     sparkSession.read.schema(schema).csv(this.getClass.getResource(temperaturesFile).getPath)
-      .withColumn("id", concat_ws("_", $"stnId", $"wbanId"))
+      .withColumn("id", concat_ws("_", coalesce($"stnId", lit("")), $"wbanId"))
       .where($"temperatureF" < 9999.9)
       .withColumn("temperature", ($"temperatureF" - 32) * 5 / 9)
       .drop("stnId", "wbanId", "temperatureF")
@@ -92,16 +91,12 @@ object Extraction extends Spark {
     * @return A sequence containing, for each location, the average temperature over the year.
     */
   def locationYearlyAverageRecords(records: Iterable[(LocalDate, Location, Temperature)]): Iterable[(Location, Temperature)] = {
-    records.par.groupBy(_._2)
-      .mapValues {
-        values => values.aggregate(0.0)(
-          {
-            case (acc, (_, _, temperature)) => acc + temperature
-          },
-          _ + _
-        ) / values.size
-
-      }
+    records.par.groupBy(_._2).mapValues(values =>
+      values.aggregate(0.0)(
+        { case (acc, (_, _, temperature)) => acc + temperature },
+        _ + _
+      ) / values.size
+    )
     .seq
   }
 }
