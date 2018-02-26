@@ -2,9 +2,9 @@ package observatory
 
 import java.time.LocalDate
 
+import observatory.sparkUtils._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Dataset, Row}
-import sparkUtils._
 
 
 /**
@@ -41,20 +41,8 @@ object Extraction extends Spark {
     ))
 
     sparkSession.read.schema(schema).csv(this.getClass.getResource(stationsFile).getPath)
-      .map { row =>
-        implicit val _r: Row = row
-        Station(
-          stnId = getRowValue(0),
-          wbanId = getRowValue(1),
-          location = for {
-            lat <- getRowValue[Double](2)
-            lon <- getRowValue[Double](3)
-          } yield Location(lat, lon)
-        )
-      }
-      .filter {
-        s: Station => s.valid
-      }
+      .drop()
+      .as[Station]
   }
 
   def stationsReadingsDS(temperaturesFile: String): Dataset[StationReading] = {
@@ -68,39 +56,29 @@ object Extraction extends Spark {
     ))
 
     sparkSession.read.schema(schema).csv(this.getClass.getResource(temperaturesFile).getPath)
-      .map { row =>
-        implicit val _r: Row = row
-        StationReading(
-          stnId = getRowValue(0),
-          wbanId = getRowValue(1),
-          month = getRowValue(2),
-          day = getRowValue(3),
-          temperature = getRowValue(4, temperatureConverter)
-        )
-      }
+      .drop()
+      .as[StationReading]
       .filter {
-        r: StationReading => r.valid
+        r: StationReading => r.temperature != 9999.9
       }
   }
 
-  def locationReadingsDS(st: Dataset[Station], rd: Dataset[StationReading], year: Year): Dataset[LocationReading] = {
-    val stations = st.repartition($"stnId", $"wbanId")
-    val readings = rd.repartition($"stnId", $"wbanId")
-
+  def locationReadingsDS(stations: Dataset[Station], readings: Dataset[StationReading], year: Year): Dataset[LocationReading] = {
     readings.joinWith(stations,
       (stations("stnId") === readings("stnId")) &&
       (stations("wbanId") === readings("wbanId"))
     )
     .map { case (reading, station) =>
       LocationReading(
-        location = station.location.get,
-        epochDay = LocalDate.of(year, reading.month.get, reading.day.get).toEpochDay,
-        temperature = reading.temperature.get
+        location = Location(station.lat, station.lon),
+        epochDay = LocalDate.of(year, reading.month, reading.day).toEpochDay,
+        temperature = reading.temperature
       )
     }
   }
 
   def aggregateAverageTemperature(locationReadings: Dataset[LocationReading]): Dataset[(Location, Temperature)] = {
+
     locationReadings
       .groupBy($"location")
       .avg("temperature")
@@ -118,12 +96,10 @@ object Extraction extends Spark {
     */
   def locateTemperatures(year: Year, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Temperature)] = {
 
-    val stations = stationsDS(stationsFile)
-    val readings = stationsReadingsDS(temperaturesFile)
-    val locationReadings = locationReadingsDS(stations, readings, year)
-
-    import scala.collection.JavaConverters._
-    locationReadings.toLocalIterator().asScala.toStream.map(lr => (LocalDate.ofEpochDay(lr.epochDay), lr.location, lr.temperature))
+    locationReadingsDS(stationsDS(stationsFile), stationsReadingsDS(temperaturesFile), year)
+      .collect()
+      .toStream
+      .map(lr => (LocalDate.ofEpochDay(lr.epochDay), lr.location, lr.temperature))
   }
 
   /**
@@ -138,7 +114,6 @@ object Extraction extends Spark {
 
     val readings = sparkSession.sparkContext.parallelize(transformed).toDS()
 
-    import scala.collection.JavaConverters._
-    aggregateAverageTemperature(readings).toLocalIterator().asScala.toStream
+    aggregateAverageTemperature(readings).collect().toStream
   }
 }

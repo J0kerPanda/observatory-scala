@@ -15,7 +15,7 @@ trait Spark extends {
     .builder()
     .config(new SparkConf()
       .setAppName("Observatory")
-      .setMaster("local")
+      .setMaster("local[4]")
       .registerKryoClasses(Array(classOf[LocalDate], classOf[LocationReading]))
     )
     .getOrCreate()

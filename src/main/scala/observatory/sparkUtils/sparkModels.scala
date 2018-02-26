@@ -2,21 +2,16 @@ package observatory.sparkUtils
 
 import observatory.{Day, Location, Month, Temperature}
 
-case class Station(stnId: Option[String],
-                   wbanId: Option[String],
-                   location: Option[Location]) {
+case class Station(stnId: String,
+                   wbanId: String,
+                   lat: Double,
+                   lon: Double)
 
-  def valid: Boolean = (stnId.exists(_.nonEmpty) || wbanId.exists(_.nonEmpty)) && location.nonEmpty
-}
-
-case class StationReading(stnId: Option[String],
-                          wbanId: Option[String],
-                          month: Option[Month],
-                          day: Option[Day],
-                          temperature: Option[Temperature]) {
-
-  def valid: Boolean = (stnId.exists(_.nonEmpty) || wbanId.exists(_.nonEmpty)) && month.nonEmpty && day.nonEmpty && temperature.nonEmpty
-}
+case class StationReading(stnId: String,
+                          wbanId: String,
+                          month: Month,
+                          day: Day,
+                          temperature: Temperature)
 
 case class LocationReading(location: Location, epochDay: Long, temperature: Temperature)
 
